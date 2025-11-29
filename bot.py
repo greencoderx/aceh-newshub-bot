@@ -49,4 +49,32 @@ def run_bot():
             )
 
             if not tweets.data:
-                print(f"No tweets found for {
+                print(f"No tweets found for {username}")
+                continue
+
+            for t in tweets.data:
+                # Skip duplicates
+                if t.id in posted_ids:
+                    continue
+
+                # Only post tweets from last hour
+                if t.created_at < one_hour_ago:
+                    print(f"Skipping old tweet: {t.id}")
+                    continue
+
+                # Prepare tweet text
+                tweet_text = f"{t.text}\n\nSource: @{username}"
+
+                # Post tweet
+                try:
+                    api_v1.update_status(tweet_text)
+                    print(f"Posted new tweet from {username}: {t.id}")
+                    save_posted_id(t.id)
+                except tweepy.TweepyException as e:
+                    print(f"Failed to post tweet {t.id}: {e}")
+
+        except Exception as e:
+            print(f"Error fetching tweets from {username}: {e}")
+
+if __name__ == "__main__":
+    run_bot()
