@@ -3,7 +3,7 @@ name: AcehNewsHub Bot
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/10 * * * *'  # runs every 10 minutes
+    - cron: '*/10 * * * *'  # every 10 minutes
 
 jobs:
   run-bot:
@@ -23,13 +23,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install tweepy requests
 
-      - name: Debug workspace
-        run: |
-          echo "📁 Current directory:"
-          pwd
-          echo "📄 Listing files:"
-          ls -R .
-
       - name: Run AcehNewsHub Bot
         env:
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
@@ -42,7 +35,7 @@ jobs:
           python bot.py
 
       - name: Deploy dashboard to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v6
+        uses: peaceiris/actions-gh-pages@v5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dashboard.html
+          publish_dir: ./gh-pages
