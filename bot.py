@@ -99,13 +99,42 @@ def run_bot():
     with open(LAST_SEEN_FILE, "w") as f:
         json.dump(last_seen, f, indent=2)
 
+    # -----------------------------
+    # Generate dashboard HTML
+    # -----------------------------
+    DASHBOARD_FILE = "dashboard.html"
+    with open(DASHBOARD_FILE, "w") as f:
+        f.write(f"""
+<html>
+<head>
+<title>AcehNewsHub Bot Status</title>
+<meta http-equiv="refresh" content="600">
+<style>
+body {{ font-family: Arial, sans-serif; background:#f5f5f5; color:#333; padding:2rem; }}
+h1 {{ color:#2a9d8f; }}
+table {{ border-collapse: collapse; width:50%; }}
+td, th {{ border:1px solid #999; padding:8px; text-align:left; }}
+</style>
+</head>
+<body>
+<h1>AcehNewsHub Bot Status</h1>
+<p>Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+<table>
+<tr><th>Total Tweets Posted</th><td>{total_posted}</td></tr>
+<tr><th>Total Tweets Skipped</th><td>{total_skipped}</td></tr>
+<tr><th>Total Errors</th><td>{total_errors}</td></tr>
+</table>
+</body>
+</html>
+""")
+    print(f"📊 Dashboard updated: {DASHBOARD_FILE}")
+
     # Summary
     print("\n=== AcehNewsHub Bot Run Summary ===")
     print(f"Total tweets posted: {total_posted}")
     print(f"Total tweets skipped: {total_skipped}")
     print(f"Total errors: {total_errors}")
     print("=================================")
-
 
 # -----------------------------
 # Run bot safely
