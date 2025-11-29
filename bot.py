@@ -23,7 +23,6 @@ sources = ["SerambiNews", "AJNN_net", "ModusAceh", "Dialeksis"]
 # Keywords to filter relevant tweets
 keywords = [
     "Aceh", "Banda Aceh", "Berita", "Disaster",
-    # Aceh kabupaten/kota
     "Aceh Barat", "Aceh Barat Daya", "Aceh Besar", "Aceh Jaya",
     "Aceh Selatan", "Aceh Singkil", "Aceh Tamiang", "Aceh Tengah",
     "Aceh Tenggara", "Aceh Timur", "Aceh Utara", "Bener Meriah",
@@ -57,48 +56,71 @@ def run_bot():
                 continue
             user_id = user.data.id
 
-            # Fetch recent tweets (max 10)
+            # Fetch recent tweets with media expansions
             tweets = client_v2.get_users_tweets(
                 id=user_id,
                 max_results=10,
-                tweet_fields=["created_at", "text", "id"]
+                tweet_fields=["created_at", "text", "id", "attachments"],
+                expansions=["attachments.media_keys"],
+                media_fields=["url", "type"]
             )
 
             if not tweets.data:
                 print(f"No tweets found for {username}")
                 continue
 
+            media_dict = {}
+            if tweets.includes and "media" in tweets.includes:
+                for m in tweets.includes["media"]:
+                    media_dict[m.media_key] = m
+
             for t in tweets.data:
-                # Skip duplicates
                 if t.id in posted_ids:
                     continue
 
-                # Only post tweets from last hour
                 if t.created_at < one_hour_ago:
                     print(f"Skipping old tweet: {t.id}")
                     continue
 
-                # Keyword filtering (case-insensitive)
                 if not any(k.lower() in t.text.lower() for k in keywords):
                     print(f"Skipping tweet {t.id} due to missing keywords")
                     continue
 
-                # Clean and truncate tweet
+                # Clean tweet
                 tweet_text = " ".join(t.text.split())
                 max_len = 280
                 if len(tweet_text) + len(f"\n\nSource: @{username}") > max_len:
                     tweet_text = tweet_text[:max_len - len(f"\n\nSource: @{username}") - 3] + "..."
                 tweet_text += f"\n\nSource: @{username}"
 
-                # Post tweet
+                # Handle media upload if any
+                media_ids = []
+                if hasattr(t, "attachments") and t.attachments:
+                    for key in t.attachments.get("media_keys", []):
+                        m = media_dict.get(key)
+                        if m and m.type == "photo":
+                            # Download image
+                            filename = f"{key}.jpg"
+                            try:
+                                import requests
+                                r = requests.get(m.url)
+                                with open(filename, "wb") as f:
+                                    f.write(r.content)
+                                media = api_v1.media_upload(filename)
+                                media_ids.append(media.media_id)
+                                os.remove(filename)
+                            except Exception as e:
+                                print(f"Failed to upload image {key}: {e}")
+                        # For simplicity, videos can be added similarly with Tweepy chunked upload
+
+                # Post tweet with media
                 try:
-                    api_v1.update_status(tweet_text)
+                    api_v1.update_status(status=tweet_text, media_ids=media_ids if media_ids else None)
                     print(f"Posted new tweet from {username}: {t.id}")
                     save_posted_id(t.id)
                 except tweepy.TweepyException as e:
                     print(f"Failed to post tweet {t.id}: {e}")
 
-            # Sleep 5 seconds to avoid rate limits
             time.sleep(5)
 
         except tweepy.TooManyRequests:
