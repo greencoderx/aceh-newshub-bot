@@ -63,11 +63,15 @@ def run_bot():
     total_posted = 0
     total_skipped = 0
     total_errors = 0
+    per_source_stats = {}
 
     for source in SOURCES:
+        posted = 0
+        skipped = 0
+        errors = 0
         print(f"🔄 Checking tweets from: {source}")
         try:
-            tweets = client.get_users_tweets(id=source, max_results=5)  # Adjust API call
+            tweets = client.get_users_tweets(id=source, max_results=5)
             if not tweets or "data" not in tweets or not tweets.data:
                 print(f"⚠ No tweets found for {source}")
                 continue
@@ -75,34 +79,43 @@ def run_bot():
             for tweet in tweets.data:
                 tweet_id = str(tweet.id)
                 if last_seen.get(source) == tweet_id:
-                    print(f"⏭ Skipping old tweet: {tweet_id}")
+                    skipped += 1
                     total_skipped += 1
+                    print(f"⏭ Skipping old tweet: {tweet_id}")
                     continue
 
                 text = tweet.text
                 if any(kw.lower() in text.lower() for kw in KEYWORDS):
                     try:
                         client.create_tweet(text=text)
-                        print(f"✅ Tweet posted: {tweet_id}")
+                        posted += 1
                         total_posted += 1
                         last_seen[source] = tweet_id
+                        print(f"✅ Tweet posted: {tweet_id}")
                     except Exception as e:
-                        print(f"❌ Failed posting tweet {tweet_id}: {e}")
+                        errors += 1
                         total_errors += 1
+                        print(f"❌ Failed posting tweet {tweet_id}: {e}")
 
         except Exception as e:
-            print(f"❌ Error fetching tweets from {source}: {e}")
+            errors += 1
             total_errors += 1
-            time.sleep(60)  # wait if rate-limited
+            print(f"❌ Error fetching tweets from {source}: {e}")
+            time.sleep(60)
+
+        per_source_stats[source] = {"posted": posted, "skipped": skipped, "errors": errors}
 
     # Save last seen
     with open(LAST_SEEN_FILE, "w") as f:
         json.dump(last_seen, f, indent=2)
 
     # -----------------------------
-    # Generate dashboard HTML
+    # Generate dashboard HTML in gh-pages folder
     # -----------------------------
-    DASHBOARD_FILE = "dashboard.html"
+    DASHBOARD_DIR = "gh-pages"
+    os.makedirs(DASHBOARD_DIR, exist_ok=True)
+    DASHBOARD_FILE = os.path.join(DASHBOARD_DIR, "index.html")
+
     with open(DASHBOARD_FILE, "w") as f:
         f.write(f"""
 <html>
@@ -112,24 +125,34 @@ def run_bot():
 <style>
 body {{ font-family: Arial, sans-serif; background:#f5f5f5; color:#333; padding:2rem; }}
 h1 {{ color:#2a9d8f; }}
-table {{ border-collapse: collapse; width:50%; }}
+table {{ border-collapse: collapse; width:80%; }}
 td, th {{ border:1px solid #999; padding:8px; text-align:left; }}
 </style>
 </head>
 <body>
 <h1>AcehNewsHub Bot Status</h1>
 <p>Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+<h2>Summary</h2>
 <table>
 <tr><th>Total Tweets Posted</th><td>{total_posted}</td></tr>
 <tr><th>Total Tweets Skipped</th><td>{total_skipped}</td></tr>
 <tr><th>Total Errors</th><td>{total_errors}</td></tr>
+</table>
+<h2>Per-Source Stats</h2>
+<table>
+<tr><th>Source</th><th>Posted</th><th>Skipped</th><th>Errors</th></tr>
+""")
+        for source, stats in per_source_stats.items():
+            f.write(f"<tr><td>{source}</td><td>{stats['posted']}</td><td>{stats['skipped']}</td><td>{stats['errors']}</td></tr>\n")
+
+        f.write("""
 </table>
 </body>
 </html>
 """)
     print(f"📊 Dashboard updated: {DASHBOARD_FILE}")
 
-    # Summary
+    # Final summary
     print("\n=== AcehNewsHub Bot Run Summary ===")
     print(f"Total tweets posted: {total_posted}")
     print(f"Total tweets skipped: {total_skipped}")
