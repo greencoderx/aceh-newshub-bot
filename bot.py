@@ -1,5 +1,6 @@
 import os
 import tweepy
+import time
 from datetime import datetime, timedelta, timezone
 
 # --- X API v2 setup ---
@@ -39,6 +40,9 @@ def run_bot():
         try:
             # Get user info
             user = client_v2.get_user(username=username)
+            if user.data is None:
+                print(f"User {username} not found, skipping.")
+                continue
             user_id = user.data.id
 
             # Fetch recent tweets (max 5)
@@ -62,8 +66,12 @@ def run_bot():
                     print(f"Skipping old tweet: {t.id}")
                     continue
 
-                # Prepare tweet text
-                tweet_text = f"{t.text}\n\nSource: @{username}"
+                # Truncate tweet if too long
+                max_len = 280
+                tweet_text = t.text
+                if len(tweet_text) + len(f"\n\nSource: @{username}") > max_len:
+                    tweet_text = tweet_text[:max_len - len(f"\n\nSource: @{username}") - 3] + "..."
+                tweet_text += f"\n\nSource: @{username}"
 
                 # Post tweet
                 try:
@@ -73,6 +81,12 @@ def run_bot():
                 except tweepy.TweepyException as e:
                     print(f"Failed to post tweet {t.id}: {e}")
 
+            # Sleep 5 seconds to avoid hitting rate limits
+            time.sleep(5)
+
+        except tweepy.TooManyRequests:
+            print(f"Rate limit hit for {username}. Waiting 60 seconds...")
+            time.sleep(60)
         except Exception as e:
             print(f"Error fetching tweets from {username}: {e}")
 
