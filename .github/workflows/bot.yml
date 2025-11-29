@@ -1,0 +1,30 @@
+name: Aceh News Bot
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # Run every 5 minutes
+  workflow_dispatch:        # Allow manual runs
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Run bot
+      env:
+        X_API_KEY: ${{ secrets.X_API_KEY }}
+        X_API_SECRET: ${{ secrets.X_API_SECRET }}
+        X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+        X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+      run: python bot.py
