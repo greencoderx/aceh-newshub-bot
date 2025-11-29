@@ -1,48 +1,64 @@
 import os
 import tweepy
 
-API_KEY = os.getenv("X_API_KEY")
-API_SECRET = os.getenv("X_API_SECRET")
+# X API v2
+BEARER_TOKEN = os.getenv("X_BEARER_TOKEN")
 ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
 ACCESS_SECRET = os.getenv("X_ACCESS_SECRET")
+API_KEY = os.getenv("X_API_KEY")
+API_SECRET = os.getenv("X_API_SECRET")
 
-auth = tweepy.OAuth1UserHandler(
-    API_KEY, API_SECRET,
-    ACCESS_TOKEN, ACCESS_SECRET
-)
-api = tweepy.API(auth)
+# Initialize v2 client (read tweets)
+client_v2 = tweepy.Client(bearer_token=BEARER_TOKEN)
 
-sources = [
-    "SerambiNews",
-    "AJNN_net",
-    "ModusAceh",
-    "Dialeksis",
-]
+# Initialize v1.1 client (to post tweets)
+auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET)
+api_v1 = tweepy.API(auth)
+
+# List of Aceh news sources
+sources = ["SerambiNews", "AJNN_net", "ModusAceh", "Dialeksis"]
+
+# Keep track of posted tweets (to avoid duplicates)
+posted_ids_file = "posted_ids.txt"
+if not os.path.exists(posted_ids_file):
+    open(posted_ids_file, "w").close()
+
+with open(posted_ids_file, "r") as f:
+    posted_ids = set(line.strip() for line in f.readlines())
+
+def save_posted_id(tweet_id):
+    with open(posted_ids_file, "a") as f:
+        f.write(f"{tweet_id}\n")
+    posted_ids.add(tweet_id)
 
 def run_bot():
-    for source in sources:
-        print(f"Checking tweets from: {source}")
+    for username in sources:
         try:
-            tweets = api.user_timeline(
-                screen_name=source,
-                count=5,
-                tweet_mode="extended"
-            )
+            # Get user ID
+            user = client_v2.get_user(username=username)
+            user_id = user.data.id
 
-            if not tweets:
-                print(f"No tweets found for {source}")
+            # Get last 5 tweets
+            tweets = client_v2.get_users_tweets(id=user_id, max_results=5, tweet_fields=["created_at","text","id"])
+            if not tweets.data:
+                print(f"No tweets found for {username}")
                 continue
 
-            for t in tweets:
+            for t in tweets.data:
+                if t.id in posted_ids:
+                    continue  # skip duplicates
+
+                # Post tweet as new tweet
+                tweet_text = f"{t.text}\n\nSource: @{username}"
                 try:
-                    print(f"Attempting retweet: {t.id} - {t.full_text[:50]}...")
-                    api.retweet(t.id)
-                    print(f"Retweeted successfully: {t.id}")
+                    api_v1.update_status(tweet_text)
+                    print(f"Posted tweet from {username}: {t.id}")
+                    save_posted_id(t.id)
                 except tweepy.TweepyException as e:
-                    print(f"Failed to retweet {t.id}: {e}")
+                    print(f"Failed to post tweet {t.id}: {e}")
 
         except Exception as e:
-            print(f"Error fetching tweets from {source}: {e}")
+            print(f"Error fetching tweets from {username}: {e}")
 
 if __name__ == "__main__":
     run_bot()
