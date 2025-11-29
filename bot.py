@@ -20,6 +20,18 @@ api_v1 = tweepy.API(auth)
 # Aceh news sources
 sources = ["SerambiNews", "AJNN_net", "ModusAceh", "Dialeksis"]
 
+# Keywords to filter relevant tweets
+keywords = [
+    "Aceh", "Banda Aceh", "Berita", "Disaster",
+    # Aceh kabupaten/kota
+    "Aceh Barat", "Aceh Barat Daya", "Aceh Besar", "Aceh Jaya",
+    "Aceh Selatan", "Aceh Singkil", "Aceh Tamiang", "Aceh Tengah",
+    "Aceh Tenggara", "Aceh Timur", "Aceh Utara", "Bener Meriah",
+    "Bireuen", "Gayo Lues", "Nagan Raya", "Pidie", "Pidie Jaya",
+    "Simeulue", "Subulussalam", "Langsa", "Lhokseumawe", "Meulaboh",
+    "Sabang", "Takengon"
+]
+
 # File to track already posted tweet IDs
 posted_ids_file = "posted_ids.txt"
 if not os.path.exists(posted_ids_file):
@@ -45,10 +57,10 @@ def run_bot():
                 continue
             user_id = user.data.id
 
-            # Fetch recent tweets (max 5)
+            # Fetch recent tweets (max 10)
             tweets = client_v2.get_users_tweets(
                 id=user_id,
-                max_results=5,
+                max_results=10,
                 tweet_fields=["created_at", "text", "id"]
             )
 
@@ -66,9 +78,14 @@ def run_bot():
                     print(f"Skipping old tweet: {t.id}")
                     continue
 
-                # Truncate tweet if too long
+                # Keyword filtering (case-insensitive)
+                if not any(k.lower() in t.text.lower() for k in keywords):
+                    print(f"Skipping tweet {t.id} due to missing keywords")
+                    continue
+
+                # Clean and truncate tweet
+                tweet_text = " ".join(t.text.split())
                 max_len = 280
-                tweet_text = t.text
                 if len(tweet_text) + len(f"\n\nSource: @{username}") > max_len:
                     tweet_text = tweet_text[:max_len - len(f"\n\nSource: @{username}") - 3] + "..."
                 tweet_text += f"\n\nSource: @{username}"
@@ -81,7 +98,7 @@ def run_bot():
                 except tweepy.TweepyException as e:
                     print(f"Failed to post tweet {t.id}: {e}")
 
-            # Sleep 5 seconds to avoid hitting rate limits
+            # Sleep 5 seconds to avoid rate limits
             time.sleep(5)
 
         except tweepy.TooManyRequests:
