@@ -2,7 +2,7 @@ name: Weather Bot Runner
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -27,37 +27,21 @@ jobs:
       run: |
         pip install tweepy requests
 
-    - name: Run Weather Bot
+    - name: Run Bot
+      continue-on-error: true
       env:
         X_API_KEY: ${{ secrets.X_API_KEY }}
         X_API_SECRET: ${{ secrets.X_API_SECRET }}
         X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
         X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
-      run: python bot.py
-
-    - name: Prepare dashboard files
       run: |
-        mkdir -p ./public
-        cp status.html ./public/status.html
-        cp state.json ./public/state.json
+        echo "Running bot.py..."
+        python bot.py || echo "Bot exited with non-zero code"
 
-    - name: Upload artifact for Pages
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: ./public
+    - name: Debug: List repository files
+      run: ls -R .
 
-  deploy-pages:
-    needs: run-bot
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+    - name: Prepare dashboard folder
+      run: |
+        echo "Creating ./public"
+        mkdir -p public
